@@ -14,6 +14,9 @@ const { parseRequirementFile } = require('./parser');
 const { createTasksFromSections } = require('./clickup');
 
 const app = express();
+// Behind nginx reverse proxy — required for rate limiting by client IP
+app.set('trust proxy', 1);
+
 const PORT = Number(process.env.PORT) || 3000;
 const MAX_FILE_SIZE_MB = Number(process.env.MAX_FILE_SIZE_MB) || 5;
 const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
