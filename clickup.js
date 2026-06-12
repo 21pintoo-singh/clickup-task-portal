@@ -6,6 +6,7 @@ const axios = require('axios');
 
 const CLICKUP_API_BASE = 'https://api.clickup.com/api/v2';
 const USERS_FILE = path.join(__dirname, 'users.json');
+const LISTS_FILE = path.join(__dirname, 'lists.json');
 
 const TASK_DEFAULTS = {
   priority: 2, // 1=Urgent, 2=High, 3=Normal, 4=Low
@@ -36,6 +37,7 @@ function getDefaultTaskDates() {
 }
 
 let userMappings = null;
+let listMappings = null;
 
 /**
  * Load assignee name → ClickUp user ID mappings from users.json.
@@ -61,6 +63,59 @@ function loadUserMappings() {
 function reloadUserMappings() {
   userMappings = null;
   return loadUserMappings();
+}
+
+/**
+ * Load team section → ClickUp list ID mappings from lists.json.
+ * @returns {Record<string, string>}
+ */
+function loadListMappings() {
+  if (listMappings) {
+    return listMappings;
+  }
+
+  try {
+    const raw = fs.readFileSync(LISTS_FILE, 'utf8');
+    listMappings = JSON.parse(raw);
+    return listMappings;
+  } catch (err) {
+    throw new Error(`Failed to load lists.json: ${err.message}`);
+  }
+}
+
+/**
+ * Reload list mappings (useful after file updates without restart).
+ */
+function reloadListMappings() {
+  listMappings = null;
+  return loadListMappings();
+}
+
+/**
+ * Resolve ClickUp list ID for a team section.
+ * @param {string} teamName
+ * @param {string|null} defaultListId
+ * @returns {{ listId: string|null, warning: string|null }}
+ */
+function resolveListForTeam(teamName, defaultListId) {
+  const mappings = loadListMappings();
+  const normalizedTeam = teamName.trim().toUpperCase();
+  const configuredListId = Object.prototype.hasOwnProperty.call(mappings, normalizedTeam)
+    ? mappings[normalizedTeam]
+    : defaultListId;
+  const listId =
+    configuredListId && String(configuredListId).trim()
+      ? String(configuredListId).trim()
+      : null;
+
+  if (!listId) {
+    return {
+      listId: null,
+      warning: `No ClickUp list configured for "${normalizedTeam}" in lists.json.`,
+    };
+  }
+
+  return { listId, warning: null };
 }
 
 /**
@@ -148,20 +203,17 @@ async function createTask({ apiToken, listId, taskTitle, requirements, assigneeI
  * @returns {Promise<Array<object>>}
  */
 async function createTasksFromSections(sections, config) {
-  const { apiToken, listId } = config;
+  const { apiToken, listId: defaultListId } = config;
 
   if (!apiToken) {
     throw new Error('CLICKUP_API_TOKEN is not configured.');
   }
 
-  if (!listId) {
-    throw new Error('CLICKUP_LIST_ID is not configured.');
-  }
-
   const results = [];
 
   for (const section of sections) {
-    const { userId, warning } = resolveAssignee(section.assignee);
+    const { userId, warning: assigneeWarning } = resolveAssignee(section.assignee);
+    const { listId, warning: listWarning } = resolveListForTeam(section.team, defaultListId);
 
     const result = {
       team: section.team,
@@ -171,9 +223,16 @@ async function createTasksFromSections(sections, config) {
       clickupTaskId: null,
       clickupUrl: null,
       clickupStatus: null,
-      warning: warning || null,
+      warning: assigneeWarning || listWarning || null,
       error: null,
     };
+
+    if (!listId) {
+      result.status = 'failed';
+      result.error = listWarning || `No ClickUp list configured for ${section.team}.`;
+      results.push(result);
+      continue;
+    }
 
     try {
       const task = await createTask({
@@ -231,7 +290,10 @@ module.exports = {
   getDefaultTaskDates,
   loadUserMappings,
   reloadUserMappings,
+  loadListMappings,
+  reloadListMappings,
   resolveAssignee,
+  resolveListForTeam,
   createTask,
   createTasksFromSections,
 };

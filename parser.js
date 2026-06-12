@@ -6,6 +6,7 @@ const mammoth = require('mammoth');
 
 const TEAM_SECTIONS = [
   'BACKEND TEAM',
+  'FRONTEND TEAM',
   'MOBILE TEAM',
   'QA TEAM',
   'DEVOPS TEAM',
@@ -98,7 +99,7 @@ function parseDocument(text) {
 
   if (matches.length === 0) {
     throw new Error(
-      'No valid team sections found. Expected: BACKEND TEAM, MOBILE TEAM, QA TEAM, or DEVOPS TEAM.'
+      'No valid team sections found. Expected: BACKEND TEAM, FRONTEND TEAM, MOBILE TEAM, QA TEAM, or DEVOPS TEAM.'
     );
   }
 
