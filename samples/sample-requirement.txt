@@ -2,7 +2,7 @@ PROJECT: User Authentication Module
 Release: v2.1
 
 BACKEND TEAM
-Assignee: Rahul
+Assignee: Pintoo Singh
 
 Task Title:
 Create User Login API
